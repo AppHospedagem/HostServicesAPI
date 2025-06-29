@@ -1,0 +1,64 @@
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosf
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+build/
+dist/
+artifacts/
+
+# Packages
+packages/
+*.nupkg
+.nuget/
+NuGet.config
+nuget.exe
+*.zip
+
+# Rider
+.idea/
+
+# Misc
+*.bak
+*.log
+*.trx
+*.pdb
+*.exe
+*.dll
+*.json.user
+*.userprefs
+Thumbs.db
+.DS_Store
+
+# Resharper
+*.dotSettings
+*.DotSettings.user
+
+# Test Results
+TestResults/
+
+# Azure Functions
+local.settings.json
+
+# Local settings
+appsettings.Development.json # Generally ignore local dev settings if they contain sensitive info
+# appsettings.Production.json # IMPORTANT: Do NOT commit production settings with secrets!
+# Be careful with appsettings.*.json files. You might want to include some but exclude others.
+# A common practice is to only include appsettings.json and let specific environments override with env vars.
+
+# User secrets (handled by dotnet user-secrets)
+*.usersecrets
+
+# Kestrel (ASP.NET Core development server)
+kestrel/
+
+# Generated files
+compilerconfig.json.user

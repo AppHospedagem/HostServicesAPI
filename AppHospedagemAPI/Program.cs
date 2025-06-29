@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer; // Adicione este using
 using Microsoft.IdentityModel.Tokens; // Adicione este using
 using System.Text; // Adicione este using
 using System.Security.Claims; // Adicione este using
+using Npgsql.EntityFrameworkCore.PostgreSQL; // Adicione este using
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -42,7 +43,7 @@ builder.Services.AddSwaggerGen(options =>
 
 // --- Configuração do DbContext ---
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // --- Configuração do JWT (Autenticação e Autorização) ---
 
