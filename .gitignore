@@ -50,7 +50,7 @@ local.settings.json
 
 # Local settings
 appsettings.Development.json # Generally ignore local dev settings if they contain sensitive info
-# appsettings.Production.json # IMPORTANT: Do NOT commit production settings with secrets!
+appsettings.Production.json # IMPORTANT: Do NOT commit production settings with secrets!
 # Be careful with appsettings.*.json files. You might want to include some but exclude others.
 # A common practice is to only include appsettings.json and let specific environments override with env vars.
 
