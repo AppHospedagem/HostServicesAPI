@@ -16,6 +16,24 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
         ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
 });
 
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontendOrigin",
+        builder =>
+        {
+            // Para desenvolvimento local, o frontend geralmente roda em localhost:porta
+            // Você pode adicionar múltiplas origens aqui
+            builder.WithOrigins("http://localhost:5500", "http://127.0.0.1:5500") // Exemplo: se o dev usar Live Server
+                   .AllowAnyHeader()    // Permite quaisquer cabeçalhos (Auth, Content-Type, etc.)
+                   .AllowAnyMethod();    // Permite todos os métodos HTTP (GET, POST, PUT, DELETE)
+
+            // Se você quiser ser mais permissivo durante o desenvolvimento inicial,
+            // pode usar AllowAnyOrigin(), mas evite em produção:
+            // builder.AllowAnyOrigin()
+            //        .AllowAnyHeader()
+            //        .AllowAnyMethod();
+        });
+});
 // --- Configuração do Swagger/OpenAPI ---
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -102,6 +120,8 @@ app.UseForwardedHeaders();
 
 app.UseSwagger();
 app.UseSwaggerUI();
+
+app.UseCors("AllowFrontendOrigin");
 
 
 app.UseHttpsRedirection();
