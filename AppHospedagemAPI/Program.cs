@@ -6,8 +6,15 @@ using Microsoft.IdentityModel.Tokens; // Adicione este using
 using System.Text; // Adicione este using
 using System.Security.Claims; // Adicione este using
 using Npgsql.EntityFrameworkCore.PostgreSQL; // Adicione este using
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders =
+        ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+});
 
 // --- Configuração do Swagger/OpenAPI ---
 builder.Services.AddEndpointsApiExplorer();
@@ -88,14 +95,14 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
 // --- Configuração do Pipeline de Requisições HTTP ---
 
 // Configurar o pipeline de middleware HTTP para Swagger em ambiente de desenvolvimento
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+
+app.UseSwagger();
+app.UseSwaggerUI();
+
 
 app.UseHttpsRedirection();
 
