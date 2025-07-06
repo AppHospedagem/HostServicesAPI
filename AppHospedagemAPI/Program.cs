@@ -23,7 +23,7 @@ builder.Services.AddCors(options =>
         {
             // Para desenvolvimento local, o frontend geralmente roda em localhost:porta
             // Você pode adicionar múltiplas origens aqui
-            builder.WithOrigins("http://localhost:5500", "http://127.0.0.1:5500") // Exemplo: se o dev usar Live Server
+            builder.WithOrigins("http://localhost:5500", "http://127.0.0.1:5500, http://127.0.0.1:5501") // Exemplo: se o dev usar Live Server
                    .AllowAnyHeader()    // Permite quaisquer cabeçalhos (Auth, Content-Type, etc.)
                    .AllowAnyMethod();    // Permite todos os métodos HTTP (GET, POST, PUT, DELETE)
 
