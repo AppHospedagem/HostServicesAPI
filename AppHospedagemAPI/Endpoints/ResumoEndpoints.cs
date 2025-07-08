@@ -14,7 +14,7 @@ namespace AppHospedagemAPI.Endpoints
                 .WithTags("Dashboard") // Tag para Swagger
                 .RequireAuthorization("admin", "gerente"); // Apenas admin e gerente podem ver o resumo
 
-            app.MapGet("/resumo", async (AppDbContext db) =>
+            group.MapGet("/resumo", async (AppDbContext db) =>
             {
                 var dataAtual = DateTime.Today;
 
