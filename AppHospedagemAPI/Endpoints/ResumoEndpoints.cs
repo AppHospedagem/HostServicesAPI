@@ -12,7 +12,7 @@ namespace AppHospedagemAPI.Endpoints
         {
             var group = app.MapGroup("/dashboard") // Criando grupo /dashboard
                 .WithTags("Dashboard") // Tag para Swagger
-                .RequireAuthorization("admin", "gerente"); // Apenas admin e gerente podem ver o resumo
+                .RequireAuthorization("admin"); // Apenas admin e gerente podem ver o resumo
 
             group.MapGet("/resumo", async (AppDbContext db) =>
             {
