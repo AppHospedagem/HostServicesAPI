@@ -77,6 +77,25 @@ var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var secretKey = jwtSettings["SecretKey"];
 var expiryInMinutes = Convert.ToDouble(jwtSettings["ExpiryInMinutes"]);
 
+// DEBUG LOGS - Adicione essas linhas
+Console.WriteLine($"DEBUG - Ambiente ASPNETCORE_ENVIRONMENT: {Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Não definido"}");
+Console.WriteLine($"DEBUG - Valor lido para 'JwtSettings:SecretKey': '{secretKey}'");
+if (string.IsNullOrEmpty(secretKey) || secretKey.Length < 32) // 32 caracteres para 256 bits, para pegar o fallback
+{
+    Console.WriteLine("DEBUG - A SECRET KEY É INSUFICIENTE OU VAZIA. VERIFICAR VARIAVEIS DE AMBIENTE OU APPSETTINGS.PRODUCTION.JSON");
+}
+else
+{
+    Console.WriteLine($"DEBUG - SECRET KEY LIDA COM SUCESSO. Comprimento: {secretKey.Length}");
+}
+// FIM DEBUG LOGS
+
+// Verifica se a SecretKey está configurada (sua verificação original)
+if (string.IsNullOrEmpty(secretKey))
+{
+    throw new InvalidOperationException("JwtSettings:SecretKey não está configurado em appsettings.json");
+}
+
 // Verifica se a SecretKey está configurada
 if (string.IsNullOrEmpty(secretKey))
 {
