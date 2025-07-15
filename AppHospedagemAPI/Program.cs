@@ -111,8 +111,8 @@ builder.Services.AddAuthentication(options =>
 {
     options.TokenValidationParameters = new TokenValidationParameters
     {
-        ValidateIssuer = false, // Em desenvolvimento, pode ser false. Em produção, true e defina Issuer
-        ValidateAudience = false, // Em desenvolvimento, pode ser false. Em produção, true e defina Audience
+        ValidateIssuer = true, // Em desenvolvimento, pode ser false. Em produção, true e defina Issuer
+        ValidateAudience = true, // Em desenvolvimento, pode ser false. Em produção, true e defina Audience
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))

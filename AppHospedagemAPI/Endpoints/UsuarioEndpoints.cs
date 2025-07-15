@@ -165,6 +165,7 @@ namespace AppHospedagemAPI.Endpoints
         {
             var jwtSettings = config.GetSection("JwtSettings");
             var key = Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]);
+            
 
             var tokenDescriptor = new SecurityTokenDescriptor
             {
