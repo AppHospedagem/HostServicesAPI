@@ -164,7 +164,7 @@ namespace AppHospedagemAPI.Endpoints
         private static string GenerateJwtToken(Usuario usuario, IConfiguration config)
         {
             var jwtSettings = config.GetSection("JwtSettings");
-            var key = Encoding.ASCII.GetBytes(jwtSettings["SecretKey"]);
+            var key = Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]);
 
             var tokenDescriptor = new SecurityTokenDescriptor
             {
