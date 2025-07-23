@@ -161,31 +161,34 @@ namespace AppHospedagemAPI.Endpoints
         }
 
         // Método auxiliar para geração de JWT (sem alterações, pois já estava correto)
-        private static string GenerateJwtToken(Usuario usuario, IConfiguration config)
+       private static string GenerateJwtToken(Usuario usuario, IConfiguration config)
+{
+    var jwtSettings = config.GetSection("JwtSettings");
+    var key = Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]!);
+    var audience = jwtSettings["Audience"];
+    
+    Console.WriteLine($"DEBUG - Secret usada para gerar token: {jwtSettings["SecretKey"]}");
+
+    var tokenDescriptor = new SecurityTokenDescriptor
+    {
+        Subject = new ClaimsIdentity(new[]
         {
-            var jwtSettings = config.GetSection("JwtSettings");
-            var key = Encoding.UTF8.GetBytes(jwtSettings["SecretKey"]);
-            
+            new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()),
+            new Claim(ClaimTypes.Name, usuario.Login),
+            new Claim(ClaimTypes.Role, usuario.Role)
+        }),
+        Issuer = jwtSettings["Issuer"], // ADICIONE ESTA LINHA
+        Audience = jwtSettings["Audience"], // ADICIONE ESTA LINHA
+        Expires = DateTime.UtcNow.AddMinutes(Convert.ToDouble(jwtSettings["ExpiryInMinutes"])),
+        SigningCredentials = new SigningCredentials(
+            new SymmetricSecurityKey(key),
+            SecurityAlgorithms.HmacSha256)
+    };
 
-            var tokenDescriptor = new SecurityTokenDescriptor
-            {
-                Subject = new ClaimsIdentity(new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()),
-                    new Claim(ClaimTypes.Name, usuario.Login),
-                    new Claim(ClaimTypes.Role, usuario.Role)
-                }),
-                Expires = DateTime.UtcNow.AddMinutes(Convert.ToDouble(jwtSettings["ExpiryInMinutes"])),
-                SigningCredentials = new SigningCredentials(
-                    new SymmetricSecurityKey(key),
-                    SecurityAlgorithms.HmacSha256Signature)
-            };
-
-            var tokenHandler = new JwtSecurityTokenHandler();
-            var token = tokenHandler.CreateToken(tokenDescriptor);
-            return tokenHandler.WriteToken(token);
-        }
-
+    var tokenHandler = new JwtSecurityTokenHandler();
+    var token = tokenHandler.CreateToken(tokenDescriptor);
+    return tokenHandler.WriteToken(token);
+}
         // --- Modelos de Request (DTOs aninhados) ---
 
         public class UsuarioCreateRequest

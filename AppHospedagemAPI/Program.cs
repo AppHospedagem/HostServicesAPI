@@ -111,14 +111,19 @@ builder.Services.AddAuthentication(options =>
 {
     options.TokenValidationParameters = new TokenValidationParameters
     {
-        ValidateIssuer = true, // Em desenvolvimento, pode ser false. Em produção, true e defina Issuer
-        ValidateAudience = true, // Em desenvolvimento, pode ser false. Em produção, true e defina Audience
+        ValidateIssuer = true,
+        ValidIssuer = jwtSettings["Issuer"],
+        ValidateAudience = true,
+        ValidAudience = jwtSettings["Audience"],
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
+        IssuerSigningKey = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(secretKey)), // Mesma chave e encoding
+        // Algoritmo padrão é HS256, mas pode ser definido explicitamente:
+        ValidAlgorithms = new[] { SecurityAlgorithms.HmacSha256 }
+        
     };
 });
-
 // 2. Configurar a Autorização
 builder.Services.AddAuthorization(options =>
 {
