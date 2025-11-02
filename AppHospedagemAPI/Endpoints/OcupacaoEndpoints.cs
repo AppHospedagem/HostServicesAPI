@@ -1,7 +1,7 @@
 ﻿using AppHospedagemAPI.Data;
 using AppHospedagemAPI.DTOs;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Mvc; // Necessário para [FromQuery]
+using Microsoft.AspNetCore.Mvc;
 
 namespace AppHospedagemAPI.Endpoints;
 
@@ -9,75 +9,77 @@ public static class OcupacaoEndpoints
 {
     public static void MapOcupacaoEndpoints(this WebApplication app)
     {
-        var group = app.MapGroup("/ocupacao") // Criando um grupo de rotas
-            .WithTags("Ocupação de Quartos") // Tag para Swagger
-            .RequireAuthorization(); // Qualquer usuário autenticado pode ver o status de ocupação
+        var group = app.MapGroup("/ocupacao")
+            .WithTags("Ocupação de Quartos")
+            .RequireAuthorization();
 
-        // 📋 Listar quartos com status de ocupação e filtros
+        // 📋 Listar quartos com status de ocupação e filtros (VERSÃO CORRIGIDA)
         group.MapGet("/", async (
             [FromQuery] string? grupo,
-            [FromQuery] string? status, // "Livre", "Parcialmente Ocupado", "Totalmente Ocupado"
+            [FromQuery] string? status, // "Disponível", "Parcialmente Ocupado", "Ocupado"
             AppDbContext db) =>
         {
             var hoje = DateTime.Today;
 
-            // Começa com a query base e inclui locações
-            var query = db.Quartos.Include(q => q.Locacoes).AsQueryable();
+            // ✅ CORREÇÃO: Status padronizados
+            var statusAtivo = "Ativo";
+            var statusReservado = "Reservado";
+            var statusFinalizado = "Finalizado";
+            var statusCancelado = "Cancelado";
 
-            // Mapeia para DTOs e calcula CamasOcupadas e Status em memória
-            // Isso é necessário porque a lógica de CamasOcupadas e Status é complexa para ser traduzida diretamente para SQL por 'Select'
-            var quartosOcupacao = await query.ToListAsync(); // Carrega tudo para calcular em memória
+            // Carrega quartos e locações
+            var quartos = await db.Quartos
+                .Include(q => q.Locacoes)
+                .ToListAsync();
 
-            var resultados = new List<QuartoOcupacaoDTO>();
-
-            foreach (var quarto in quartosOcupacao)
+            var resultados = quartos.Select(quarto =>
             {
-                // Calcula camas ocupadas considerando ambos os tipos de locação
+                // ✅ CORREÇÃO CRÍTICA: Considera APENAS locações ATIVAS para cálculo de ocupação
                 int camasOcupadas = quarto.Locacoes?
-                    .Where(l => l.DataEntrada <= hoje && l.DataSaida >= hoje && l.Status != "finalizado" && l.Status != "cancelado")
+                    .Where(l => l.DataEntrada <= hoje && 
+                               l.DataSaida >= hoje && 
+                               l.Status == statusAtivo) // ← APENAS LOCAÇÕES ATIVAS!
                     .Sum(l => l.TipoLocacao == "quarto" ? quarto.QuantidadeCamas : l.QuantidadeCamas) ?? 0;
 
                 string statusCalculado;
-                if (camasOcupadas == 0)
-                {
-                    statusCalculado = "Livre";
-                }
-                else if (camasOcupadas >= quarto.QuantidadeCamas)
-                {
-                    statusCalculado = "Totalmente Ocupado";
-                }
-                else
-                {
-                    statusCalculado = "Parcialmente Ocupado";
-                }
 
-                resultados.Add(new QuartoOcupacaoDTO
+                if (camasOcupadas == 0)
+                    statusCalculado = "Disponível";
+                else if (camasOcupadas < quarto.QuantidadeCamas)
+                    statusCalculado = "Parcialmente Ocupado";
+                else
+                    statusCalculado = "Ocupado";
+
+                return new QuartoOcupacaoDTO
                 {
+                    Id = quarto.Id,
                     Numero = quarto.Numero,
                     Grupo = quarto.Grupo,
                     TotalCamas = quarto.QuantidadeCamas,
                     CamasOcupadas = camasOcupadas,
                     Status = statusCalculado
-                });
-            }
+                };
+            }).ToList();
 
-            // Aplicar filtros após o cálculo, em memória
-            IEnumerable<QuartoOcupacaoDTO> resultadosFiltrados = resultados;
-
+            // Aplicar filtros em memória
             if (!string.IsNullOrEmpty(grupo))
             {
-                resultadosFiltrados = resultadosFiltrados.Where(q => q.Grupo.Equals(grupo, StringComparison.OrdinalIgnoreCase));
+                resultados = resultados
+                    .Where(q => q.Grupo.Equals(grupo, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
             }
 
             if (!string.IsNullOrEmpty(status))
             {
-                resultadosFiltrados = resultadosFiltrados.Where(q => q.Status.Equals(status, StringComparison.OrdinalIgnoreCase));
+                resultados = resultados
+                    .Where(q => q.Status.Equals(status, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
             }
 
-            return Results.Ok(resultadosFiltrados.OrderBy(q => q.Numero));
+            return Results.Ok(resultados.OrderBy(q => q.Numero));
         })
         .WithSummary("Lista o status de ocupação atual de todos os quartos.")
-        .WithDescription("Permite filtrar por grupo do quarto e status de ocupação (Livre, Parcialmente Ocupado, Totalmente Ocupado).")
+        .WithDescription("Permite filtrar por grupo do quarto e status de ocupação (Disponível, Parcialmente Ocupado, Ocupado).")
         .Produces<IEnumerable<QuartoOcupacaoDTO>>(StatusCodes.Status200OK)
         .ProducesProblem(StatusCodes.Status401Unauthorized);
     }

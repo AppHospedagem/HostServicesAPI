@@ -37,3 +37,4 @@ public class LocacaoCreateRequest
 
     // O preço total será calculado pela API, não enviado pelo cliente
 }
+

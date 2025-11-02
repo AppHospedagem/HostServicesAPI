@@ -54,7 +54,7 @@ namespace AppHospedagemAPI.Endpoints
                     Telefone = FormatTelefone(cliente.Telefone)
                 });
             })
-            // .RequireAuthorization("admin") // Exemplo: se apenas admins podem criar clientes
+            .RequireAuthorization("admin") // Exemplo: se apenas admins podem criar clientes
             .WithSummary("Cria um novo cliente")
             .WithDescription("Cadastra cliente com validação de documento (CPF/CNPJ) e telefone.")
             .Produces<ClienteResponse>(StatusCodes.Status201Created)
@@ -149,18 +149,41 @@ namespace AppHospedagemAPI.Endpoints
             // ❌ Excluir cliente
             group.MapDelete("/{id}", async (int id, AppDbContext db) =>
             {
+                // 1. Primeiro verifica se o cliente existe
                 var cliente = await db.Clientes.FindAsync(id);
-                if (cliente is null) return Results.NotFound("Cliente não encontrado para exclusão.");
+                if (cliente is null)
+                    return Results.NotFound("Cliente não encontrado para exclusão.");
 
+                // 2. Consulta DIRETA para verificar reservas ativas - MÉTODO MAIS CONFIÁVEL
+                var temReservasAtivas = await db.Locacoes
+                    .AnyAsync(l => l.ClienteId == id &&
+                                  (l.Status == "Reservado" || l.Status == "Ativo"));
+
+                Console.WriteLine($"Cliente {id} - Tem reservas ativas: {temReservasAtivas}"); // Debug
+
+                if (temReservasAtivas)
+                {
+                    return Results.BadRequest(new
+                    {
+                        message = "Não é possível excluir o cliente pois ele possui reservas ativas ou pendentes.",
+                        errorCode = "CLIENTE_COM_RESERVAS_ATIVAS"
+                    });
+                }
+
+                // 3. Se não tem reservas ativas, exclui o cliente
                 db.Clientes.Remove(cliente);
                 await db.SaveChangesAsync();
+
                 return Results.NoContent();
             })
-            // .RequireAuthorization("admin") // Exemplo: se apenas admins podem excluir clientes
             .WithSummary("Exclui um cliente existente")
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status401Unauthorized);
+
+
+
         }
 
         #region Métodos Auxiliares

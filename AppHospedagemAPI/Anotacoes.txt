@@ -36,3 +36,22 @@ PARA SALVAR E ENVIAR MUDANÇAS PARA O GITHUB (GIT):
 ---
 
 LEMBRETE: Execute esses comandos no terminal, DENTRO DA PASTA RAIZ DO SEU PROJETO.
+
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=dpg-d1gs9rili9vc73b2fj3g-a.ohio-postgres.render.com;Port=5432;Database=hospedagemdb;Username=hospedagemdb_user;Password=N9hjemskPFOq7CxTdvcwM91AnVi59TTL;SslMode=Require"
+  },
+  "JwtSettings": {
+    "SecretKey": "MySuperSecretKey1234567890ABCDEFGH",
+    "Issuer": "HospedagemAPI",
+    "Audience": "HospedagemApp",
+    "ExpiryInMinutes": 60
+},
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*"
+}

@@ -23,7 +23,7 @@ builder.Services.AddCors(options =>
         {
             // Para desenvolvimento local, o frontend geralmente roda em localhost:porta
             // Você pode adicionar múltiplas origens aqui
-            builder.WithOrigins("http://localhost:5500", "http://127.0.0.1:5500", "http://127.0.0.1:5501") // Exemplo: se o dev usar Live Server
+            builder.WithOrigins("http://localhost:5500", "http://127.0.0.1:5500", "http://127.0.0.1:5501", "http://127.0.0.1:3000") // Exemplo: se o dev usar Live Server
                    .AllowAnyHeader()    // Permite quaisquer cabeçalhos (Auth, Content-Type, etc.)
                    .AllowAnyMethod();    // Permite todos os métodos HTTP (GET, POST, PUT, DELETE)
 
@@ -118,9 +118,12 @@ builder.Services.AddAuthentication(options =>
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
         IssuerSigningKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes(secretKey)), // Mesma chave e encoding
+            Encoding.UTF8.GetBytes(secretKey)),
+        // Mesma chave e encoding
         // Algoritmo padrão é HS256, mas pode ser definido explicitamente:
-        ValidAlgorithms = new[] { SecurityAlgorithms.HmacSha256 }
+        ValidAlgorithms = new[] { SecurityAlgorithms.HmacSha256 },
+        RoleClaimType = ClaimTypes.Role,
+        NameClaimType = ClaimTypes.NameIdentifier
         
     };
 });
@@ -128,7 +131,6 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("admin", policy => policy.RequireClaim(ClaimTypes.Role, "admin"));
-    options.AddPolicy("gerente", policy => policy.RequireClaim(ClaimTypes.Role, "gerente"));
     options.AddPolicy("funcionario", policy => policy.RequireClaim(ClaimTypes.Role, "funcionario"));
     // Você pode adicionar outras políticas conforme necessário, por exemplo, "gerenteOuAdmin"
     // options.AddPolicy("gerenteOuAdmin", policy => policy.RequireRole("gerente", "admin"));

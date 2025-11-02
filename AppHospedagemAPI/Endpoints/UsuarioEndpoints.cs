@@ -133,15 +133,16 @@ namespace AppHospedagemAPI.Endpoints
                 // A Role só pode ser alterada por um admin, ou não permitida a alteração via PUT aqui.
                 // Se desejar que o próprio usuário não altere a role, remova a linha abaixo.
                 // Se quiser que apenas admin altere, adicione uma verificação de role aqui.
+                
                 if (!string.IsNullOrEmpty(request.Role))
                 {
-                    usuario.Role = request.Role; 
+                    usuario.Role = request.Role;
                 }
 
                 await db.SaveChangesAsync();
                 return Results.NoContent();
             })
-            .RequireAuthorization()
+            .RequireAuthorization("admin")
             .WithSummary("Atualizar usuário");
 
             // ❌ Remover usuário (apenas admin)
@@ -205,7 +206,7 @@ namespace AppHospedagemAPI.Endpoints
             [StringLength(50, MinimumLength = 6, ErrorMessage = "Senha deve ter no mínimo 6 caracteres")]
             public string Senha { get; set; } = string.Empty;
 
-            [RegularExpression("^(admin|gerente|funcionario)$", ErrorMessage = "Role inválida. Use: admin, gerente ou funcionario")]
+            [RegularExpression("^(admin|funcionario)$", ErrorMessage = "Role inválida. Use: admin, gerente ou funcionario")]
             public string? Role { get; set; } // Pode ser null para usar o padrão "funcionario" no model
         }
 
@@ -222,7 +223,7 @@ namespace AppHospedagemAPI.Endpoints
             [StringLength(50, MinimumLength = 6, ErrorMessage = "Senha deve ter no mínimo 6 caracteres se for alterada")]
             public string? Senha { get; set; } // Nullable, pois a senha pode não ser alterada
 
-            [RegularExpression("^(admin|gerente|funcionario)$", ErrorMessage = "Role inválida. Use: admin, gerente ou funcionario")]
+            [RegularExpression("^(admin|funcionario)$", ErrorMessage = "Role inválida. Use: admin, gerente ou funcionario")]
             public string? Role { get; set; } // Role também pode ser atualizada (se permitido pela lógica de negócio)
         }
 

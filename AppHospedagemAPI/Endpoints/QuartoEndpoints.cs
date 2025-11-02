@@ -2,7 +2,7 @@
 using AppHospedagemAPI.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
-using AppHospedagemAPI.DTOs; // Importe os novos DTOs
+using AppHospedagemAPI.DTOs;
 
 namespace AppHospedagemAPI.Endpoints
 {
@@ -12,9 +12,9 @@ namespace AppHospedagemAPI.Endpoints
         {
             var group = app.MapGroup("/quartos")
                 .WithTags("Quartos")
-                .RequireAuthorization(); // Autorização padrão para todos os endpoints de quarto
+                .RequireAuthorization(); // Todos exigem autenticação
 
-            // 📋 Listar quartos com filtros
+            // 📋 LISTAR QUARTOS
             group.MapGet("/", async (
                 [FromQuery] string? grupo,
                 [FromQuery] int? capacidadeMinima,
@@ -24,54 +24,46 @@ namespace AppHospedagemAPI.Endpoints
                 var query = db.Quartos.AsQueryable();
 
                 if (!string.IsNullOrEmpty(grupo))
-                {
                     query = query.Where(q => q.Grupo == grupo);
-                }
 
                 if (capacidadeMinima.HasValue)
-                {
                     query = query.Where(q => q.QuantidadeCamas >= capacidadeMinima.Value);
-                }
 
-                // Lógica de disponibilidade aprimorada para usar a propriedade EstaOcupado
-                // Carrega Locacoes apenas se o filtro 'disponivel' for usado
                 if (disponivel.HasValue)
                 {
-                    query = query.Include(q => q.Locacoes); // Carrega as locações para usar EstaOcupado
+                    query = query.Include(q => q.Locacoes);
 
                     query = disponivel.Value
-                        ? query.Where(q => !q.EstaOcupado) // Filtrar por quartos NÃO ocupados
-                        : query.Where(q => q.EstaOcupado); // Filtrar por quartos ocupados
+                        ? query.Where(q => !q.EstaOcupado)
+                        : query.Where(q => q.EstaOcupado);
                 }
 
                 var quartos = await query.OrderBy(q => q.Numero).ToListAsync();
 
-                // Projeta para QuartoResponse
                 return Results.Ok(quartos.Select(q => new QuartoResponse
                 {
                     Id = q.Id,
                     Numero = q.Numero,
                     QuantidadeCamas = q.QuantidadeCamas,
                     Grupo = q.Grupo,
-                    EstaOcupado = q.EstaOcupado // Usa a propriedade calculada do modelo
+                    EstaOcupado = q.EstaOcupado
                 }));
             })
             .WithSummary("Listar quartos com filtros")
-            .WithDescription("Filtra quartos por grupo, capacidade mínima e status de disponibilidade.")
             .Produces<IEnumerable<QuartoResponse>>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status401Unauthorized);
 
-            // 🔍 Obter detalhes de um quarto (incluindo status de ocupação)
+
+            // 🔍 OBTER DETALHES DE UM QUARTO
             group.MapGet("/{id}", async (int id, AppDbContext db) =>
             {
                 var quarto = await db.Quartos
-                    .Include(q => q.Locacoes) // Inclui as locações para que 'EstaOcupado' funcione
+                    .Include(q => q.Locacoes)
                     .FirstOrDefaultAsync(q => q.Id == id);
 
                 if (quarto == null)
                     return Results.NotFound("Quarto não encontrado.");
 
-                // Retorna QuartoResponse, com EstaOcupado
                 return Results.Ok(new QuartoResponse
                 {
                     Id = quarto.Id,
@@ -87,22 +79,13 @@ namespace AppHospedagemAPI.Endpoints
             .ProducesProblem(StatusCodes.Status401Unauthorized);
 
 
-            // ➕ Cadastrar novo quarto (apenas admin)
+            // ➕ CADASTRAR NOVO QUARTO (apenas admin)
             group.MapPost("/", async (
-                [FromBody] QuartoCreateRequest request, // Usando DTO de criação
+                [FromBody] QuartoCreateRequest request,
                 AppDbContext db) =>
             {
-                // A validação das Data Annotations em QuartoCreateRequest é automática.
-
-                // Validação de negócio: Unicidade do número do quarto
                 if (await db.Quartos.AnyAsync(q => q.Numero == request.Numero))
                     return Results.BadRequest("Já existe um quarto com este número.");
-
-                // Validação CustomValidation do Grupo (executada automaticamente pelo pipeline)
-                // Opcional: Chamar Validator.TryValidateObject(quarto, ...) se a validação CustomValidation for crítica aqui antes de salvar.
-                // Mas, como está no modelo, ela será validada se você tiver um ModelState/ValidationFilter.
-                // Para Minimal API, se você não tem um Filter explicitamente, o Validator.TryValidateObject é útil.
-                // Mas geralmente, ao salvar, as Data Annotations no modelo são disparadas.
 
                 var quarto = new Quarto
                 {
@@ -114,17 +97,16 @@ namespace AppHospedagemAPI.Endpoints
                 db.Quartos.Add(quarto);
                 await db.SaveChangesAsync();
 
-                // Retorna QuartoResponse do quarto criado
                 return Results.Created($"/quartos/{quarto.Id}", new QuartoResponse
                 {
                     Id = quarto.Id,
                     Numero = quarto.Numero,
                     QuantidadeCamas = quarto.QuantidadeCamas,
                     Grupo = quarto.Grupo,
-                    EstaOcupado = quarto.EstaOcupado // Será false para um quarto recém-criado
+                    EstaOcupado = quarto.EstaOcupado // apenas leitura
                 });
             })
-            .RequireAuthorization("admin") // Apenas admin pode criar quartos
+            .RequireAuthorization("admin")
             .WithSummary("Cadastra um novo quarto")
             .Produces<QuartoResponse>(StatusCodes.Status201Created)
             .ProducesProblem(StatusCodes.Status400BadRequest)
@@ -132,23 +114,18 @@ namespace AppHospedagemAPI.Endpoints
             .ProducesProblem(StatusCodes.Status403Forbidden);
 
 
-            // ✏️ Atualizar quarto (apenas admin)
+            // ✏️ ATUALIZAR QUARTO (apenas admin)
             group.MapPut("/{id}", async (
                 int id,
-                [FromBody] QuartoUpdateRequest request, // Usando DTO de atualização
+                [FromBody] QuartoUpdateRequest request,
                 AppDbContext db) =>
             {
-                // A validação das Data Annotations em QuartoUpdateRequest é automática.
-
                 var quarto = await db.Quartos.FindAsync(id);
                 if (quarto == null)
                     return Results.NotFound("Quarto não encontrado para atualização.");
 
-                // Validação de negócio: Unicidade do número do quarto (exclui o próprio quarto)
                 if (await db.Quartos.AnyAsync(q => q.Numero == request.Numero && q.Id != id))
                     return Results.BadRequest("Já existe outro quarto com este número.");
-                
-                // Validação CustomValidation do Grupo (semelhante ao POST)
 
                 quarto.Numero = request.Numero;
                 quarto.QuantidadeCamas = request.QuantidadeCamas;
@@ -157,7 +134,7 @@ namespace AppHospedagemAPI.Endpoints
                 await db.SaveChangesAsync();
                 return Results.NoContent();
             })
-            .RequireAuthorization("admin") // Apenas admin pode atualizar quartos
+            .RequireAuthorization("admin")
             .WithSummary("Atualiza os dados de um quarto existente")
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status400BadRequest)
@@ -166,26 +143,25 @@ namespace AppHospedagemAPI.Endpoints
             .ProducesProblem(StatusCodes.Status403Forbidden);
 
 
-            // ❌ Remover quarto (apenas admin)
+            // ❌ REMOVER QUARTO (apenas admin)
             group.MapDelete("/{id}", async (int id, AppDbContext db) =>
             {
                 var quarto = await db.Quartos
-                    .Include(q => q.Locacoes) // Inclui locações para verificar se há locações ativas
+                    .Include(q => q.Locacoes)
                     .FirstOrDefaultAsync(q => q.Id == id);
 
                 if (quarto == null)
-                    return Results.NotFound("Quarto não encontrado para exclusão.");
+                    return Results.NotFound("Quarto não encontrado.");
 
-                // Validação de negócio: Não permitir excluir quarto com locações futuras ou ativas
-                if (quarto.Locacoes?.Any(l => l.DataSaida >= DateTime.Today) ?? false)
-                    return Results.BadRequest("Não é possível excluir quarto com locações futuras ou ativas.");
+                if (quarto.Locacoes?.Any(l => l.Status == "Ativo" || l.Status == "Reservado") ?? false)
+        return Results.BadRequest("Não é possível excluir quarto com locações ativas ou reservas futuras.");
 
                 db.Quartos.Remove(quarto);
                 await db.SaveChangesAsync();
 
                 return Results.NoContent();
             })
-            .RequireAuthorization("admin") // Apenas admin pode remover quartos
+            .RequireAuthorization("admin")
             .WithSummary("Exclui um quarto existente")
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status400BadRequest)
@@ -193,53 +169,109 @@ namespace AppHospedagemAPI.Endpoints
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .ProducesProblem(StatusCodes.Status403Forbidden);
 
-            // Endpoint para QuartoOcupacaoDTO
-            // Este é um endpoint separado para obter o status de ocupação para um quarto específico
-            group.MapGet("/ocupacao/{id}", async (int id, AppDbContext db) =>
+            // 🛏️ VERIFICAR DISPONIBILIDADE DO QUARTO EM UM PERÍODO ESPECÍFICO
+            group.MapGet("/disponibilidade/{id}", async (
+                int id,
+                [FromQuery] DateTime dataInicio,
+                [FromQuery] DateTime dataFim,
+                AppDbContext db,
+                [FromQuery] int? excluirReserva = null) => // 🔥 MOVER PARA O FINAL
             {
-                var quarto = await db.Quartos
-                    .Include(q => q.Locacoes) // Garante que as locações sejam carregadas
-                    .FirstOrDefaultAsync(q => q.Id == id);
-
+                var quarto = await db.Quartos.FindAsync(id);
                 if (quarto == null)
-                {
                     return Results.NotFound("Quarto não encontrado.");
+
+                // Converter para UTC para comparação correta
+                var dataInicioUtc = dataInicio.ToUniversalTime().Date;
+                var dataFimUtc = dataFim.ToUniversalTime().Date;
+
+                // Status válidos para considerar ocupação (MESMA LÓGICA DO LocacaoEndpoints)
+                var statusValidos = new[] { "Reservado", "Ativo" };
+
+                // Query para locações conflitantes (MESMA LÓGICA DO LocacaoEndpoints)
+                var query = db.Locacoes
+                    .Where(l => l.QuartoId == id &&
+                               statusValidos.Contains(l.Status) &&
+                               l.DataEntrada < dataFimUtc &&
+                               l.DataSaida > dataInicioUtc);
+
+                // Excluir uma reserva específica (útil para edição)
+                if (excluirReserva.HasValue)
+                {
+                    query = query.Where(l => l.Id != excluirReserva.Value);
                 }
 
-                // Mapeia para QuartoOcupacaoDTO
-                var ocupacaoDto = new QuartoOcupacaoDTO
+                var conflitos = await query.ToListAsync();
+
+                // Calcular camas ocupadas (MESMA LÓGICA DO LocacaoEndpoints)
+                var camasOcupadas = conflitos.Sum(l =>
+                    l.TipoLocacao == "quarto" ? quarto.QuantidadeCamas : l.QuantidadeCamas);
+
+                // Determinar status
+                var status = "Disponível";
+                if (camasOcupadas == quarto.QuantidadeCamas)
+                    status = "Ocupado";
+                else if (camasOcupadas > 0)
+                    status = "Parcialmente Ocupado";
+
+                return Results.Ok(new
                 {
+                    Id = quarto.Id,
                     Numero = quarto.Numero,
                     Grupo = quarto.Grupo,
                     TotalCamas = quarto.QuantidadeCamas,
-                    CamasOcupadas = quarto.Locacoes?
-                                        .Where(l => l.DataEntrada <= DateTime.Today && l.DataSaida >= DateTime.Today && l.TipoLocacao == "cama")
-                                        .Sum(l => l.QuantidadeCamas) ?? 0, // Soma camas ocupadas apenas se for tipo "cama"
-                    // O status aqui pode ser derivado da propriedade EstaOcupado ou ser mais granular
-                    Status = quarto.EstaOcupado ? "Ocupado" : "Livre"
-                };
-
-                // Um quarto pode estar parcialmente ocupado se TipoLocacao for "cama" e CamasOcupadas < TotalCamas
-                if (!quarto.EstaOcupado && ocupacaoDto.CamasOcupadas > 0 && ocupacaoDto.CamasOcupadas < ocupacaoDto.TotalCamas)
-                {
-                    ocupacaoDto.Status = "Parcialmente Ocupado";
-                }
-                else if (ocupacaoDto.CamasOcupadas == ocupacaoDto.TotalCamas)
-                {
-                     ocupacaoDto.Status = "Totalmente Ocupado";
-                }
-                else if (!quarto.EstaOcupado && ocupacaoDto.CamasOcupadas == 0)
-                {
-                    ocupacaoDto.Status = "Livre";
-                }
-
-
-                return Results.Ok(ocupacaoDto);
+                    CamasOcupadas = camasOcupadas,
+                    CamasDisponiveis = quarto.QuantidadeCamas - camasOcupadas,
+                    Status = status,
+                    Periodo = new { DataInicio = dataInicioUtc, DataFim = dataFimUtc },
+                    Conflitos = conflitos.Count
+                });
             })
-            .WithSummary("Obtém o status de ocupação detalhado de um quarto")
-            .Produces<QuartoOcupacaoDTO>(StatusCodes.Status200OK)
+            .WithSummary("Verifica a disponibilidade de um quarto em um período específico")
+            .Produces(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status401Unauthorized);
+
+
+            // 🛏️ DETALHAR OCUPAÇÃO DO QUARTO
+        group.MapGet("/ocupacao/{id}", async (int id, AppDbContext db) =>
+{
+    var quarto = await db.Quartos
+        .Include(q => q.Locacoes)
+        .FirstOrDefaultAsync(q => q.Id == id);
+
+    if (quarto == null)
+        return Results.NotFound("Quarto não encontrado.");
+
+    // ✅ CORREÇÃO: Considera APENAS locações ATIVAS para calcular camas ocupadas
+    var camasOcupadas = quarto.Locacoes?
+        .Where(l => l.Status == "Ativo" && // ← APENAS "Ativo"!
+                    l.DataEntrada <= DateTime.Today &&
+                    l.DataSaida >= DateTime.Today)
+        .Sum(l => l.TipoLocacao == "quarto" ? quarto.QuantidadeCamas : l.QuantidadeCamas) ?? 0;
+
+    var status = "Disponível";
+    if (camasOcupadas == quarto.QuantidadeCamas)
+        status = "Ocupado";
+    else if (camasOcupadas > 0)
+        status = "Parcialmente Ocupado";
+
+    var ocupacaoDto = new QuartoOcupacaoDTO
+    {
+        Numero = quarto.Numero,
+        Grupo = quarto.Grupo,
+        TotalCamas = quarto.QuantidadeCamas,
+        CamasOcupadas = camasOcupadas,
+        Status = status
+    };
+
+    return Results.Ok(ocupacaoDto);
+})
+.WithSummary("Obtém o status de ocupação detalhado de um quarto")
+.Produces<QuartoOcupacaoDTO>(StatusCodes.Status200OK)
+.ProducesProblem(StatusCodes.Status404NotFound)
+.ProducesProblem(StatusCodes.Status401Unauthorized);
+
         }
     }
 }

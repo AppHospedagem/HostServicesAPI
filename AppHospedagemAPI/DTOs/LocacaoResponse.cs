@@ -17,3 +17,17 @@ public class LocacaoResponse
     //public decimal PrecoTotal { get; set; }
     public string? UsuarioResponsavelLogin { get; set; } // Login do usuário que criou/alterou
 }
+
+public class CheckoutRequest
+{
+    public DateTime? DataCheckout { get; set; }
+}
+
+public class LocacaoUpdateRequest
+{
+    public int? QuartoId { get; set; }
+    public DateTime? DataEntrada { get; set; }  // 🔥 ADICIONAR ESTA LINHA
+    public DateTime? DataSaida { get; set; }
+    public string? TipoLocacao { get; set; }
+    public int? QuantidadeCamas { get; set; }
+}

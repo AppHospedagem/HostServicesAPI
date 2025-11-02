@@ -1,8 +1,9 @@
 ﻿using AppHospedagemAPI.Data;
-using AppHospedagemAPI.DTOs; // Para DashboardResumoResponse
+using AppHospedagemAPI.DTOs;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.AspNetCore.Mvc; // Para StatusCodes
-using System.Linq; // Para ToLower() e GroupBy
+using Microsoft.AspNetCore.Mvc;
+using System.Linq;
+using System;
 
 namespace AppHospedagemAPI.Endpoints
 {
@@ -10,74 +11,129 @@ namespace AppHospedagemAPI.Endpoints
     {
         public static void MapResumoEndpoints(this WebApplication app)
         {
-            var group = app.MapGroup("/dashboard") // Criando grupo /dashboard
-                .WithTags("Dashboard") // Tag para Swagger
-                .RequireAuthorization("admin"); // Apenas admin e gerente podem ver o resumo
+            var group = app.MapGroup("/dashboard")
+                .WithTags("Dashboard")
+                .RequireAuthorization("admin");
+
+                
 
             group.MapGet("/resumo", async (AppDbContext db) =>
-            {
-                var dataAtual = DateTime.Today;
+{
+    var dataAtualUtc = DateTime.UtcNow.Date;
+    var dataAmanhaUtc = dataAtualUtc.AddDays(1);
 
-                // --- Calcular Quartos Ocupados (totalmente ou parcialmente) ---
-                // Precisamos carregar quartos com suas locações ativas para calcular ocupação por quarto
-                var quartosComOcupacao = await db.Quartos
-                    .Include(q => q.Locacoes.Where(l =>
-                        l.DataEntrada <= dataAtual && l.DataSaida >= dataAtual &&
-                        (l.Status == "reservado" || l.Status == "ativo"))) // Considera reservas e ativas
-                    .ToListAsync();
+    // ✅ Status padronizados
+    var statusReservado = "Reservado";
+    var statusAtivo = "Ativo";
+    var statusFinalizado = "Finalizado";
+    var statusCancelado = "Cancelado";
 
-                int quartosOcupadosTotalmente = 0;
-                int quartosParcialmenteOcupados = 0;
+    // 🏨 1. MÉTRICAS DE OCUPAÇÃO (EXISTENTES)
+    var totalQuartos = await db.Quartos.CountAsync();
+    
+    var quartosOcupadosTotalmente = await db.Locacoes
+        .Where(l => l.DataEntrada <= dataAtualUtc && 
+                   l.DataSaida >= dataAtualUtc &&
+                   l.Status == statusAtivo &&
+                   l.TipoLocacao == "quarto")
+        .Select(l => l.QuartoId)
+        .Distinct()
+        .CountAsync();
 
-                foreach (var quarto in quartosComOcupacao)
-                {
-                    // Soma as camas ocupadas para o dia de hoje, considerando tipo 'quarto' ou 'cama'
-                    int camasOcupadas = quarto.Locacoes
-                        .Sum(l => l.TipoLocacao == "quarto" ? quarto.QuantidadeCamas : l.QuantidadeCamas);
+    var quartosParcialmenteOcupados = await db.Locacoes
+        .Where(l => l.DataEntrada <= dataAtualUtc && 
+                   l.DataSaida >= dataAtualUtc &&
+                   l.Status == statusAtivo &&
+                   l.TipoLocacao == "cama" &&
+                   l.QuantidadeCamas > 0)
+        .Select(l => l.QuartoId)
+        .Distinct()
+        .CountAsync();
 
-                    if (camasOcupadas == quarto.QuantidadeCamas && quarto.QuantidadeCamas > 0)
-                    {
-                        quartosOcupadosTotalmente++;
-                    }
-                    else if (camasOcupadas > 0 && camasOcupadas < quarto.QuantidadeCamas)
-                    {
-                        quartosParcialmenteOcupados++;
-                    }
-                }
+    var quartosLivres = totalQuartos - (quartosOcupadosTotalmente + quartosParcialmenteOcupados);
+    var taxaOcupacaoAtual = totalQuartos > 0 ? 
+        (decimal)(quartosOcupadosTotalmente + quartosParcialmenteOcupados) / totalQuartos * 100 : 0;
 
-                // --- Outras Métricas ---
+    // 📅 2. RESERVAS E CHECK-IN/OUT (EXISTENTES + NOVAS)
+    var reservasHoje = await db.Locacoes
+        .CountAsync(l => l.DataEntrada.Date == dataAtualUtc && 
+                        l.Status == statusReservado);
 
-                // Reservas esperadas para Check-in hoje
-                var reservasHoje = await db.Locacoes
-                    .CountAsync(l => l.DataEntrada.Date == dataAtual && l.Status == "reservado");
+    // ➕ NOVO: Check-ins pendentes (reservas para hoje que ainda não fizeram check-in)
+    var checkInsPendentes = await db.Locacoes
+        .CountAsync(l => l.DataEntrada.Date == dataAtualUtc && 
+                        l.Status == statusReservado);
 
-                // Locações para Check-out hoje (que já fizeram check-in e estão ativas)
-                var checkOutsHoje = await db.Locacoes
-                    .CountAsync(l => l.DataSaida.Date == dataAtual && l.Status == "ativo" && l.CheckInRealizado);
+    // ➕ NOVO: Check-outs pendentes (locações ativas que terminam hoje)
+    var checkOutsPendentes = await db.Locacoes
+        .CountAsync(l => l.DataSaida.Date == dataAtualUtc && 
+                        l.Status == statusAtivo);
 
-                // Clientes Ativos (com locação "ativo" ou "reservado" hoje)
-                var clientesAtivosHoje = await db.Locacoes
-                    .Where(l => l.DataEntrada <= dataAtual && l.DataSaida >= dataAtual &&
-                                (l.Status == "ativo" || l.Status == "reservado"))
-                    .Select(l => l.ClienteId)
-                    .Distinct()
-                    .CountAsync();
+    // ➕ NOVO: No-shows (reservas de ontem que nunca fizeram check-in)
+    var dataOntem = dataAtualUtc.AddDays(-1);
+    var noShows = await db.Locacoes
+        .CountAsync(l => l.DataEntrada.Date == dataOntem && 
+                        l.Status == statusReservado);
 
-                var totalQuartos = await db.Quartos.CountAsync();
-                var quartosLivres = totalQuartos - (quartosOcupadosTotalmente + quartosParcialmenteOcupados);
+    // 👥 3. CLIENTES (EXISTENTE)
+    var clientesAtivosHoje = await db.Locacoes
+        .Where(l => l.DataEntrada <= dataAtualUtc && 
+                   l.DataSaida >= dataAtualUtc &&
+                   l.Status == statusAtivo)
+        .Select(l => l.ClienteId)
+        .Distinct()
+        .CountAsync();
 
+    // 📈 4. PREVISÕES E ESTATÍSTICAS (NOVAS)
+    // ➕ Previsão ocupação amanhã (baseado em reservas confirmadas)
+    var reservasAmanha = await db.Locacoes
+        .CountAsync(l => l.DataEntrada.Date == dataAmanhaUtc && 
+                        (l.Status == statusReservado || l.Status == statusAtivo));
+    
+    var previsaoOcupacaoAmanha = totalQuartos > 0 ? 
+        (decimal)reservasAmanha / totalQuartos * 100 : 0;
 
-                return Results.Ok(new DashboardResumoResponse
-                {
-                    TotalQuartos = totalQuartos,
-                    QuartosLivres = quartosLivres,
-                    QuartosOcupadosTotalmente = quartosOcupadosTotalmente,
-                    QuartosParcialmenteOcupados = quartosParcialmenteOcupados,
-                    ReservasHoje = reservasHoje,
-                    CheckOutsHoje = checkOutsHoje,
-                    ClientesAtivosHoje = clientesAtivosHoje
-                });
-            })
+    // ➕ Quarto mais popular (mais reservas nos últimos 30 dias)
+    var trintaDiasAtras = dataAtualUtc.AddDays(-30);
+    var quartoMaisPopular = await db.Locacoes
+        .Where(l => l.DataEntrada >= trintaDiasAtras)
+        .GroupBy(l => l.Quarto.Numero)
+        .OrderByDescending(g => g.Count())
+        .Select(g => g.Key.ToString())
+        .FirstOrDefaultAsync() ?? "N/A";
+
+    // ➕ Tempo médio de estadia (em dias)
+    var locacoesFinalizadas = await db.Locacoes
+        .Where(l => l.Status == statusFinalizado && l.DataEntrada >= trintaDiasAtras)
+        .ToListAsync();
+
+    var tempoMedioEstadia = locacoesFinalizadas.Any() ?
+        locacoesFinalizadas.Average(l => (l.DataSaida - l.DataEntrada).TotalDays) : 0;
+
+    return Results.Ok(new DashboardResumoResponse
+    {
+        // 🏨 Ocupação
+        TotalQuartos = totalQuartos,
+        QuartosLivres = quartosLivres,
+        QuartosOcupadosTotalmente = quartosOcupadosTotalmente,
+        QuartosParcialmenteOcupados = quartosParcialmenteOcupados,
+        TaxaOcupacaoAtual = Math.Round(taxaOcupacaoAtual, 1),
+        
+        // 📅 Reservas
+        ReservasHoje = reservasHoje,
+        CheckInsPendentes = checkInsPendentes,
+        CheckOutsPendentes = checkOutsPendentes,
+        NoShows = noShows,
+        
+        // 👥 Clientes
+        ClientesAtivosHoje = clientesAtivosHoje,
+        
+        // 📈 Estatísticas
+        PrevisaoOcupacaoAmanha = Math.Round(previsaoOcupacaoAmanha, 1),
+        QuartoMaisPopular = quartoMaisPopular,
+        TempoMedioEstadia = Math.Round((decimal)tempoMedioEstadia, 1)
+    });
+})
             .WithSummary("Obtém um resumo de estatísticas para o dashboard.")
             .WithDescription("Fornece informações sobre ocupação de quartos, reservas e clientes ativos para o dia atual.")
             .Produces<DashboardResumoResponse>(StatusCodes.Status200OK)

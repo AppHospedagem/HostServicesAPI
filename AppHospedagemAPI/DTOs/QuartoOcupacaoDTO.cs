@@ -2,6 +2,7 @@
 
 public class QuartoOcupacaoDTO
 {
+    public int Id { get; set; }
     public int Numero { get; set; }
     public string Grupo { get; set; } = string.Empty;
     public int TotalCamas { get; set; }
